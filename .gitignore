@@ -1,0 +1,42 @@
+# Build results
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# User-specific files
+appsettings.Development.json
+
+# NuGet
+.nuget/
+*.nupkg
+
+# User secrets
+secrets.json
+
+# Build artifacts
+dist/
+build/
+
+# IDE settings
+.vscodeignore
+launch.json
+tasks.json
