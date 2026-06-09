@@ -53,9 +53,10 @@ public class DocumentsController : ControllerBase
     [HttpGet("{id}/file")]
     public async Task<IActionResult> DownloadDocument(string id)
     {
-        var fileContent = await _documentService.DownloadDocumentAsync(id);
+        var stream = await _documentService.DownloadDocumentAsync(id);
         var document = await _documentService.GetDocumentAsync(id);
-        return File(fileContent, "application/octet-stream", $"{document.Title}.{document.FileType}");
+        var fileName = $"{document.Title}.{document.FileType}";
+        return File(stream, "application/octet-stream", fileName, enableRangeProcessing: true);
     }
 
     [Authorize]

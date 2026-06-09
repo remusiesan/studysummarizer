@@ -6,7 +6,9 @@ public class Document
     public string UserId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string FileType { get; set; } = string.Empty;
-    public string FilePath { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public long FileSize { get; set; }
+    public byte[] FileContent { get; set; } = [];
     public string Status { get; set; } = DocumentStatusValues.Pending;
     public DateTime UploadDate { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
