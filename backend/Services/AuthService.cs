@@ -35,22 +35,20 @@ public class AuthService : IAuthService
 
     public async Task<UserRegisterResponse> RegisterAsync(UserRegisterRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email))
-            throw new ValidationException("Username and email are required");
-
-        if (await _context.Users.AnyAsync(u => u.Username == request.Username))
-            throw new ValidationException("Username already exists");
+        if (string.IsNullOrWhiteSpace(request.Email))
+            throw new ValidationException("Email is required");
 
         if (await _context.Users.AnyAsync(u => u.Email == request.Email))
             throw new ValidationException("Email already exists");
 
         var userId = _idGenerator.GenerateUserId();
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        var username = request.Email.Split('@')[0];
 
         var user = new User
         {
             Id = userId,
-            Username = request.Username,
+            Username = username,
             Email = request.Email,
             PasswordHash = passwordHash,
             IsActive = true,
@@ -65,7 +63,8 @@ public class AuthService : IAuthService
         return new UserRegisterResponse
         {
             Message = "User registered successfully",
-            UserId = userId
+            UserId = userId,
+            Token = GenerateJwtToken(user)
         };
     }
 
@@ -84,7 +83,8 @@ public class AuthService : IAuthService
         return new UserLoginResponse
         {
             Message = "Login successful",
-            Token = GenerateJwtToken(user)
+            Token = GenerateJwtToken(user),
+            UserId = user.Id
         };
     }
 

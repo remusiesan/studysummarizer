@@ -1,14 +1,31 @@
-# Build results
-bin/
-obj/
-*.dll
-*.exe
-*.pdb
+# Backend (.NET)
+backend/bin/
+backend/obj/
+backend/*.dll
+backend/*.exe
+backend/*.pdb
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/logs/
+backend/*.log
+backend/appsettings.Development.json
+backend/.nuget/
+backend/*.nupkg
+backend/secrets.json
 
-# Database files
-*.db
-*.db-shm
-*.db-wal
+# Frontend (Node/React)
+frontend/node_modules/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
 
 # IDE and editor files
 .vscode/
@@ -18,25 +35,12 @@ obj/
 *~
 .DS_Store
 
-# Logs
-logs/
-*.log
-
-# User-specific files
-appsettings.Development.json
-
-# NuGet
-.nuget/
-*.nupkg
-
-# User secrets
-secrets.json
-
-# Build artifacts
-dist/
-build/
-
 # IDE settings
 .vscodeignore
 launch.json
 tasks.json
+*.code-workspace
+
+# Build artifacts
+dist/
+build/

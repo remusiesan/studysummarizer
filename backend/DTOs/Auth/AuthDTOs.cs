@@ -11,6 +11,7 @@ public class UserRegisterResponse
 {
     public string Message { get; set; } = "User registered successfully";
     public string UserId { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
 }
 
 public class UserLoginRequest
@@ -23,6 +24,7 @@ public class UserLoginResponse
 {
     public string Message { get; set; } = "Login successful";
     public string Token { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
 }
 
 public class UserProfileResponse

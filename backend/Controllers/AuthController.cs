@@ -6,7 +6,7 @@ using StudySummarizer.Services;
 namespace StudySummarizer.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route("api/auth")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
