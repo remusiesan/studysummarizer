@@ -129,7 +129,9 @@ public class DocumentService : IDocumentService
                 Id = d.Id,
                 Title = d.Title,
                 FileType = d.FileType,
-                Status = d.Status
+                Status = d.Status,
+                UploadedAt = d.UploadDate,
+                FileSize = d.FileSize
             })
             .ToListAsync();
 
@@ -151,7 +153,8 @@ public class DocumentService : IDocumentService
             Title = document.Title,
             FileType = document.FileType,
             Status = document.Status,
-            UploadDate = document.UploadDate
+            UploadedAt = document.UploadDate,
+            FileSize = document.FileSize
         };
     }
 

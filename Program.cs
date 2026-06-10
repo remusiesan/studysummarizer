@@ -74,7 +74,8 @@ builder.Services.AddCors(options =>
     {
         policy.AllowAnyOrigin()
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .WithExposedHeaders("Authorization", "Content-Type");
     });
 });
 
@@ -89,6 +90,11 @@ Log.Logger = new LoggerConfiguration()
 var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// CORS must be early in the pipeline
+app.UseHttpsRedirection();
+app.UseCors(Constants.Cors.AllowAllPolicy);
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -96,8 +102,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = Constants.Swagger.RoutePrefix;
 });
 
-app.UseHttpsRedirection();
-app.UseCors(Constants.Cors.AllowAllPolicy);
+app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

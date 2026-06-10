@@ -18,6 +18,8 @@ public class DocumentListItemResponse
     public string Title { get; set; } = string.Empty;
     public string FileType { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public DateTime UploadedAt { get; set; }
+    public long FileSize { get; set; }
 }
 
 public class DocumentDetailResponse
@@ -26,7 +28,8 @@ public class DocumentDetailResponse
     public string Title { get; set; } = string.Empty;
     public string FileType { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
-    public DateTime UploadDate { get; set; }
+    public DateTime UploadedAt { get; set; }
+    public long FileSize { get; set; }
 }
 
 public class DocumentDeleteResponse

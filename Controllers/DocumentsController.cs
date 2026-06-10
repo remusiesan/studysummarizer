@@ -50,6 +50,7 @@ public class DocumentsController : ControllerBase
         return Ok(document);
     }
 
+    [AllowAnonymous]
     [HttpGet("{id}/file")]
     public async Task<IActionResult> DownloadDocument(string id)
     {
