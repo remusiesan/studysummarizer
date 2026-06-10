@@ -138,4 +138,4 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
-app.Run("http://localhost:5000");
+app.Run();

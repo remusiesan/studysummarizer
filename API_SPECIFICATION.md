@@ -1,207 +1,79 @@
-# Study Summarizer API Specification
+# Study Summarizer — API Specification
 
-## ✅ Completion Status: ALL REQUIREMENTS MET
-
-### Base URL
-```
-http://localhost:5000/api
-```
+**Base URL:** `http://localhost:5000/api`  
+**Auth:** JWT Bearer Token — include as `Authorization: Bearer <token>` on protected endpoints  
+**Token expiry:** 24 hours
 
 ---
 
-## 📋 Document Management Endpoints
+## Authentication Endpoints
 
-### 1. Upload a Document
-**POST** `/documents`
-```json
+### Register
+**POST** `/auth/register`
+
 Request:
-{
-  "title": "Introduction to Artificial Intelligence",
-  "fileType": "pdf",
-  "filePath": "/uploads/ai_intro.pdf"
-}
-
-Response (200 OK):
-{
-  "message": "Document uploaded successfully",
-  "id": "D1"
-}
-```
-✅ **Status**: Implemented & Tested
-
----
-
-### 2. List All Documents
-**GET** `/documents`
 ```json
-Response (200 OK):
-[
-  {
-    "id": "D1",
-    "title": "Introduction to Artificial Intelligence",
-    "fileType": "pdf",
-    "status": "pending"
-  }
-]
-```
-✅ **Status**: Implemented & Tested
-
----
-
-### 3. Get Document by ID
-**GET** `/documents/{id}`
-```json
-Response (200 OK):
 {
-  "id": "D1",
-  "title": "Introduction to Artificial Intelligence",
-  "fileType": "pdf",
-  "status": "pending",
-  "uploadDate": "2025-10-15T14:35:00Z"
-}
-```
-✅ **Status**: Implemented & Tested
-
----
-
-### 4. Download Document File
-**GET** `/documents/{id}/file`
-```
-Headers: Content-Type: application/pdf
-Response: Binary file content
-```
-✅ **Status**: Implemented
-
----
-
-### 5. Delete Document
-**DELETE** `/documents/{id}`
-```json
-Response (200 OK):
-{
-  "message": "Document deleted successfully"
-}
-```
-✅ **Status**: Implemented & Tested
-
----
-
-## 📝 Summarization Management Endpoints
-
-### 1. Generate Summary
-**POST** `/documents/{documentId}/summarize`
-```json
-Request:
-{
-  "summaryType": "concise"
-}
-
-Response (200 OK):
-{
-  "message": "Summarization started",
-  "documentId": "D1"
-}
-```
-✅ **Status**: Implemented & Tested
-
----
-
-### 2. Retrieve Summary
-**GET** `/documents/{documentId}/summary`
-```json
-Response (200 OK):
-{
-  "documentId": "D1",
-  "title": "Introduction to Artificial Intelligence",
-  "summary": "Artificial Intelligence (AI) focuses on creating systems...",
-  "generatedAt": "2025-10-15T14:40:00Z"
-}
-```
-✅ **Status**: Implemented & Tested
-
----
-
-### 3. Update/Regenerate Summary
-**PATCH** `/documents/{documentId}/summary`
-```json
-Request:
-{
-  "summaryType": "detailed"
-}
-
-Response (200 OK):
-{
-  "message": "Summary regenerated successfully"
-}
-```
-✅ **Status**: Implemented & Tested
-
----
-
-## 👤 User Management Endpoints (Required)
-
-### 1. Register New User
-**POST** `/users/register`
-```json
-Request:
-{
-  "username": "student01",
-  "email": "student01@example.com",
+  "email": "student@example.com",
   "password": "securePassword123"
 }
+```
 
-Response (200 OK):
+Response `200 OK`:
+```json
 {
   "message": "User registered successfully",
-  "userId": "U1"
-}
-```
-✅ **Status**: Implemented & Tested
-
----
-
-### 2. User Login
-**POST** `/users/login`
-```json
-Request:
-{
-  "email": "student01@example.com",
-  "password": "securePassword123"
-}
-
-Response (200 OK):
-{
-  "message": "Login successful",
+  "userId": "U1",
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6..."
 }
 ```
-✅ **Status**: Implemented & Tested
 
 ---
 
-### 3. Get Current User Profile
-**GET** `/users/profile`
-```
-Headers: Authorization: Bearer <token>
+### Login
+**POST** `/auth/login`
 
-Response (200 OK):
+Request:
+```json
+{
+  "email": "student@example.com",
+  "password": "securePassword123"
+}
+```
+
+Response `200 OK`:
+```json
+{
+  "message": "Login successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
+  "userId": "U1"
+}
+```
+
+---
+
+### Get Profile
+**GET** `/auth/profile`  
+🔒 Requires auth
+
+Response `200 OK`:
+```json
 {
   "id": "U1",
-  "username": "student01",
-  "email": "student01@example.com",
+  "username": "student",
+  "email": "student@example.com",
   "registeredAt": "2025-10-15T12:00:00Z"
 }
 ```
-✅ **Status**: Implemented & Tested
 
 ---
 
-### 4. List User's Documents
-**GET** `/users/{userId}/documents`
-```
-Headers: Authorization: Bearer <token>
+### Get User Documents
+**GET** `/auth/{userId}/documents`  
+🔒 Requires auth
 
-Response (200 OK):
+Response `200 OK`:
+```json
 [
   {
     "documentId": "D1",
@@ -210,44 +82,196 @@ Response (200 OK):
   }
 ]
 ```
-✅ **Status**: Implemented & Tested
 
 ---
 
-## 🔐 Authentication
-- **Type**: JWT Bearer Token
-- **Method**: Include token in `Authorization: Bearer <token>` header
-- **Expiration**: 24 hours
-- **Protected Endpoints**: Document upload, delete, summarization updates, user profile access
+## Document Endpoints
+
+### Upload Document
+**POST** `/documents`  
+🔒 Requires auth  
+Content-Type: `multipart/form-data`
+
+Form fields:
+- `title` (string) — document title, max 255 characters
+- `file` (binary) — file to upload, max 20 MB
+
+Supported formats: PDF, DOC, DOCX, TXT, XLS, XLSX, PPT, PPTX, PNG, JPG, JPEG, GIF
+
+Response `201 Created`:
+```json
+{
+  "message": "Document uploaded successfully",
+  "id": "D1"
+}
+```
 
 ---
 
-## 📊 ID Generation Format
-- **User IDs**: U1, U2, U3... (String format)
-- **Document IDs**: D1, D2, D3... (String format)
-- **Summary IDs**: S1, S2, S3... (String format)
+### List All Documents
+**GET** `/documents?pageNumber=1&pageSize=10`
+
+Response `200 OK`:
+```json
+{
+  "items": [
+    {
+      "id": "D1",
+      "title": "Introduction to AI",
+      "fileType": "pdf",
+      "status": "pending",
+      "uploadedAt": "2025-10-15T14:35:00Z",
+      "fileSize": 204800
+    }
+  ],
+  "totalCount": 1,
+  "pageNumber": 1,
+  "pageSize": 10
+}
+```
 
 ---
 
-## 📦 Technology Stack
-- **Framework**: .NET 8.0
-- **Authentication**: JWT Bearer Tokens
-- **Database**: SQLite (EF Core)
-- **API Documentation**: Swagger/OpenAPI
+### Get Document by ID
+**GET** `/documents/{id}`
+
+Response `200 OK`:
+```json
+{
+  "id": "D1",
+  "title": "Introduction to AI",
+  "fileType": "pdf",
+  "status": "pending",
+  "uploadedAt": "2025-10-15T14:35:00Z",
+  "fileSize": 204800
+}
+```
 
 ---
 
-## ✨ Test Results
-- ✅ User Registration - PASS
-- ✅ User Login - PASS
-- ✅ Get User Profile - PASS
-- ✅ Document Upload - PASS
-- ✅ List Documents - PASS
-- ✅ Get Document Details - PASS
-- ✅ Generate Summary - PASS
-- ✅ Get Summary - PASS
-- ✅ Update Summary - PASS
-- ✅ Get User Documents - PASS
-- ✅ Delete Document - PASS
+### Download Document File
+**GET** `/documents/{id}/file`
 
-**Overall Status**: ✅ ALL REQUIREMENTS MET & TESTED
+Response: binary file stream  
+`Content-Type: application/octet-stream`
+
+---
+
+### Delete Document
+**DELETE** `/documents/{id}`  
+🔒 Requires auth
+
+Response `200 OK`:
+```json
+{
+  "message": "Document deleted successfully"
+}
+```
+
+---
+
+## Summary Endpoints
+
+### Generate Summary
+**POST** `/documents/{documentId}/summarize`  
+🔒 Requires auth
+
+Request:
+```json
+{
+  "summaryType": "concise"
+}
+```
+
+Response `201 Created`:
+```json
+{
+  "message": "Summarization started",
+  "documentId": "D1"
+}
+```
+
+---
+
+### Get Summary
+**GET** `/documents/{documentId}/summary`
+
+Response `200 OK`:
+```json
+{
+  "documentId": "D1",
+  "title": "Introduction to AI",
+  "summary": "Artificial Intelligence (AI) focuses on creating systems...",
+  "generatedAt": "2025-10-15T14:40:00Z"
+}
+```
+
+---
+
+### Update / Regenerate Summary
+**PATCH** `/documents/{documentId}/summary`  
+🔒 Requires auth
+
+Request:
+```json
+{
+  "summaryType": "detailed"
+}
+```
+
+Response `200 OK`:
+```json
+{
+  "message": "Summary regenerated successfully"
+}
+```
+
+---
+
+## ID Format
+
+| Entity   | Format       | Example |
+|----------|--------------|---------|
+| User     | `U{n}`       | U1, U2  |
+| Document | `D{n}`       | D1, D2  |
+| Summary  | `S{n}`       | S1, S2  |
+
+---
+
+## Document Status Values
+
+| Value        | Meaning                              |
+|--------------|--------------------------------------|
+| `pending`    | Uploaded, not yet summarised         |
+| `summarizing`| Summary generation in progress       |
+| `summarized` | Summary available                    |
+
+---
+
+## Error Responses
+
+All errors follow the same envelope:
+
+```json
+{
+  "success": false,
+  "message": "Error description",
+  "errorCode": "VALIDATION_ERROR"
+}
+```
+
+| HTTP Status | Error Code         | When                              |
+|-------------|--------------------|-----------------------------------|
+| 400         | `VALIDATION_ERROR` | Invalid request data              |
+| 401         | `UNAUTHORIZED`     | Missing or invalid token          |
+| 404         | `NOT_FOUND`        | Resource does not exist           |
+| 500         | `INTERNAL_ERROR`   | Unhandled server error            |
+
+---
+
+## Technology Stack
+
+- **Framework:** .NET 8
+- **Auth:** JWT Bearer Tokens
+- **Database:** SQLite via Entity Framework Core
+- **API Docs:** Swagger / OpenAPI at `/api/v1`
