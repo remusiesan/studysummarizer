@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using StudySummarizer.DTOs;
 using StudySummarizer.DTOs.Auth;
 using StudySummarizer.Services;
 
@@ -23,15 +24,15 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] UserRegisterRequest request)
     {
-        var response = await _authService.RegisterAsync(request);
-        return Ok(response);
+        var result = await _authService.RegisterAsync(request);
+        return Ok(ApiResponse<UserRegisterResponse>.SuccessResponse(result, "User registered successfully"));
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] UserLoginRequest request)
     {
-        var response = await _authService.LoginAsync(request);
-        return Ok(response);
+        var result = await _authService.LoginAsync(request);
+        return Ok(ApiResponse<UserLoginResponse>.SuccessResponse(result, "Login successful"));
     }
 
     [Authorize]
@@ -43,7 +44,7 @@ public class AuthController : ControllerBase
             return Unauthorized();
 
         var profile = await _authService.GetProfileAsync(userId);
-        return Ok(profile);
+        return Ok(ApiResponse<UserProfileResponse>.SuccessResponse(profile, "Profile retrieved successfully"));
     }
 
     [Authorize]
@@ -51,7 +52,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> GetUserDocuments(string userId)
     {
         var documents = await _documentService.GetUserDocumentsAsync(userId);
-        return Ok(documents);
+        return Ok(ApiResponse<List<UserDocumentListResponse>>.SuccessResponse(documents, "Documents retrieved successfully"));
     }
 }
 

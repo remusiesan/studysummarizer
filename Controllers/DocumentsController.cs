@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using StudySummarizer.DTOs;
+using StudySummarizer.Application.Extensions;
 using StudySummarizer.DTOs.Documents;
 using StudySummarizer.Services;
 
@@ -32,22 +34,23 @@ public class DocumentsController : ControllerBase
             File = file
         };
 
-        var response = await _documentService.UploadDocumentAsync(request, userId);
-        return Ok(response);
+        var result = await _documentService.UploadDocumentAsync(request, userId);
+        return Created($"/api/documents/{result.Id}", ApiResponse<DocumentUploadResponse>.SuccessResponse(result, "Document uploaded successfully"));
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAllDocuments()
+    public async Task<IActionResult> GetAllDocuments([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
         var documents = await _documentService.GetAllDocumentsAsync();
-        return Ok(documents);
+        var paginated = documents.GetPaginated(pageNumber, pageSize);
+        return Ok(ApiResponse<PaginatedResponse<DocumentListItemResponse>>.SuccessResponse(paginated, "Documents retrieved successfully"));
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetDocument(string id)
     {
         var document = await _documentService.GetDocumentAsync(id);
-        return Ok(document);
+        return Ok(ApiResponse<DocumentDetailResponse>.SuccessResponse(document, "Document retrieved successfully"));
     }
 
     [AllowAnonymous]
@@ -64,7 +67,7 @@ public class DocumentsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteDocument(string id)
     {
-        var response = await _documentService.DeleteDocumentAsync(id);
-        return Ok(response);
+        var result = await _documentService.DeleteDocumentAsync(id);
+        return Ok(ApiResponse<DocumentDeleteResponse>.SuccessResponse(result, "Document deleted successfully"));
     }
 }

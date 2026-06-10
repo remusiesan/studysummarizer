@@ -1,6 +1,6 @@
+using StudySummarizer.DTOs;
 using StudySummarizer.Exceptions;
 using System.Net;
-using System.Text.Json;
 
 namespace StudySummarizer.Middleware;
 
@@ -32,27 +32,45 @@ public class ExceptionHandlingMiddleware
     {
         context.Response.ContentType = Constants.ContentTypes.Json;
 
-        var response = new
+        var response = exception switch
         {
-            error = exception.Message,
-            code = Constants.ErrorCodes.InternalError,
-            timestamp = DateTime.UtcNow
+            ValidationException vEx => new ApiResponse
+            {
+                Success = false,
+                Message = vEx.Message,
+                Errors = [vEx.Message],
+                Timestamp = DateTime.UtcNow
+            },
+            NotFoundException nfEx => new ApiResponse
+            {
+                Success = false,
+                Message = nfEx.Message,
+                Errors = [nfEx.Message],
+                Timestamp = DateTime.UtcNow
+            },
+            UnauthorizedException uEx => new ApiResponse
+            {
+                Success = false,
+                Message = uEx.Message,
+                Errors = [uEx.Message],
+                Timestamp = DateTime.UtcNow
+            },
+            _ => new ApiResponse
+            {
+                Success = false,
+                Message = "An unexpected error occurred",
+                Errors = [exception.Message],
+                Timestamp = DateTime.UtcNow
+            }
         };
 
-        if (exception is ApiException apiEx)
+        context.Response.StatusCode = exception switch
         {
-            context.Response.StatusCode = apiEx.StatusCode;
-            response = new
-            {
-                error = apiEx.Message,
-                code = apiEx.ErrorCode,
-                timestamp = DateTime.UtcNow
-            };
-        }
-        else
-        {
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-        }
+            ValidationException => (int)HttpStatusCode.BadRequest,
+            NotFoundException => (int)HttpStatusCode.NotFound,
+            UnauthorizedException => (int)HttpStatusCode.Unauthorized,
+            _ => (int)HttpStatusCode.InternalServerError
+        };
 
         return context.Response.WriteAsJsonAsync(response);
     }

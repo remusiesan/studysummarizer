@@ -1,13 +1,9 @@
 using BCrypt.Net;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using StudySummarizer.Data;
+using StudySummarizer.Application.Interfaces;
+using StudySummarizer.Application.Repositories;
 using StudySummarizer.DTOs.Auth;
 using StudySummarizer.Exceptions;
 using StudySummarizer.Models;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 
 namespace StudySummarizer.Services;
 
@@ -20,15 +16,15 @@ public interface IAuthService
 
 public class AuthService : IAuthService
 {
-    private readonly AppDbContext _context;
-    private readonly IConfiguration _config;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ITokenService _tokenService;
     private readonly ILogger<AuthService> _logger;
     private readonly IIdGeneratorService _idGenerator;
 
-    public AuthService(AppDbContext context, IConfiguration config, ILogger<AuthService> logger, IIdGeneratorService idGenerator)
+    public AuthService(IUnitOfWork unitOfWork, ITokenService tokenService, ILogger<AuthService> logger, IIdGeneratorService idGenerator)
     {
-        _context = context;
-        _config = config;
+        _unitOfWork = unitOfWork;
+        _tokenService = tokenService;
         _logger = logger;
         _idGenerator = idGenerator;
     }
@@ -38,7 +34,7 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(request.Email))
             throw new ValidationException("Email is required");
 
-        if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+        if (_unitOfWork.Users.Get(u => u.Email == request.Email) != null)
             throw new ValidationException("Email already exists");
 
         var userId = _idGenerator.GenerateUserId();
@@ -55,8 +51,8 @@ public class AuthService : IAuthService
             RegisteredAt = DateTime.UtcNow
         };
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        _unitOfWork.Users.Add(user);
+        await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("User {Username} registered successfully", user.Username);
 
@@ -64,69 +60,42 @@ public class AuthService : IAuthService
         {
             Message = "User registered successfully",
             UserId = userId,
-            Token = GenerateJwtToken(user)
+            Token = _tokenService.GenerateToken(user.Id, user.Username, user.Email)
         };
     }
 
     public async Task<UserLoginResponse> LoginAsync(UserLoginRequest request)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        var user = _unitOfWork.Users.Get(u => u.Email == request.Email);
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedException("Invalid email or password");
 
         user.LastLogin = DateTime.UtcNow;
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
+        _unitOfWork.Users.Update(user);
+        await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("User {Username} logged in successfully", user.Username);
 
         return new UserLoginResponse
         {
             Message = "Login successful",
-            Token = GenerateJwtToken(user),
+            Token = _tokenService.GenerateToken(user.Id, user.Username, user.Email),
             UserId = user.Id
         };
     }
 
     public async Task<UserProfileResponse> GetProfileAsync(string userId)
     {
-        var user = await _context.Users.FindAsync(userId);
+        var user = _unitOfWork.Users.Get(u => u.Id == userId);
         if (user == null)
             throw new NotFoundException("User not found");
 
-        return new UserProfileResponse
+        return await Task.FromResult(new UserProfileResponse
         {
             Id = user.Id,
             Username = user.Username,
             Email = user.Email,
             RegisteredAt = user.RegisteredAt
-        };
-    }
-
-    private string GenerateJwtToken(User user)
-    {
-        var jwtSecret = _config[Constants.Jwt.ConfigKeySecret] ?? throw new InvalidOperationException("JWT secret not configured");
-        var jwtIssuer = _config[Constants.Jwt.ConfigKeyIssuer] ?? Constants.Jwt.DefaultIssuer;
-        var jwtAudience = _config[Constants.Jwt.ConfigKeyAudience] ?? Constants.Jwt.DefaultAudience;
-
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, user.Id),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Email, user.Email)
-        };
-
-        var token = new JwtSecurityToken(
-            issuer: jwtIssuer,
-            audience: jwtAudience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(24),
-            signingCredentials: credentials
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        });
     }
 }

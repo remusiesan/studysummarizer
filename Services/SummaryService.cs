@@ -1,5 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using StudySummarizer.Data;
+using StudySummarizer.Application.Repositories;
 using StudySummarizer.DTOs.Summaries;
 using StudySummarizer.Exceptions;
 using StudySummarizer.Models;
@@ -15,24 +14,24 @@ public interface ISummaryService
 
 public class SummaryService : ISummaryService
 {
-    private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SummaryService> _logger;
     private readonly IIdGeneratorService _idGenerator;
 
-    public SummaryService(AppDbContext context, ILogger<SummaryService> logger, IIdGeneratorService idGenerator)
+    public SummaryService(IUnitOfWork unitOfWork, ILogger<SummaryService> logger, IIdGeneratorService idGenerator)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _logger = logger;
         _idGenerator = idGenerator;
     }
 
     public async Task<SummaryGenerateResponse> GenerateSummaryAsync(string documentId, SummaryGenerateRequest request)
     {
-        var document = await _context.Documents.FindAsync(documentId);
+        var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException("Document not found");
 
-        var existingSummary = await _context.Summaries.FirstOrDefaultAsync(s => s.DocumentId == documentId);
+        var existingSummary = _unitOfWork.Summaries.Get(s => s.DocumentId == documentId);
         if (existingSummary != null)
             throw new ValidationException("A summary already exists for this document");
 
@@ -48,12 +47,12 @@ public class SummaryService : ISummaryService
             GeneratedAt = DateTime.UtcNow
         };
 
-        _context.Summaries.Add(summary);
+        _unitOfWork.Summaries.Add(summary);
 
         document.Status = DocumentStatusValues.Summarizing;
-        _context.Documents.Update(document);
+        _unitOfWork.Documents.Update(document);
 
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Summarization started for document {DocumentId}", documentId);
 
@@ -66,32 +65,30 @@ public class SummaryService : ISummaryService
 
     public async Task<SummaryDetailResponse> GetSummaryAsync(string documentId)
     {
-        var document = await _context.Documents.FindAsync(documentId);
+        var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException("Document not found");
 
-        var summary = await _context.Summaries
-            .FirstOrDefaultAsync(s => s.DocumentId == documentId);
-
+        var summary = _unitOfWork.Summaries.Get(s => s.DocumentId == documentId);
         if (summary == null)
             throw new NotFoundException("No summary found for this document");
 
-        return new SummaryDetailResponse
+        return await Task.FromResult(new SummaryDetailResponse
         {
             DocumentId = summary.DocumentId,
             Title = summary.Title,
             Summary = summary.Content,
             GeneratedAt = summary.GeneratedAt
-        };
+        });
     }
 
     public async Task<SummaryUpdateResponse> UpdateSummaryAsync(string documentId, SummaryUpdateRequest request)
     {
-        var document = await _context.Documents.FindAsync(documentId);
+        var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException("Document not found");
 
-        var summary = await _context.Summaries.FirstOrDefaultAsync(s => s.DocumentId == documentId);
+        var summary = _unitOfWork.Summaries.Get(s => s.DocumentId == documentId);
         if (summary == null)
             throw new NotFoundException("No summary found for this document");
 
@@ -101,9 +98,9 @@ public class SummaryService : ISummaryService
 
         document.Status = DocumentStatusValues.Summarizing;
 
-        _context.Summaries.Update(summary);
-        _context.Documents.Update(document);
-        await _context.SaveChangesAsync();
+        _unitOfWork.Summaries.Update(summary);
+        _unitOfWork.Documents.Update(document);
+        await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Summary for document {DocumentId} regenerated", documentId);
 

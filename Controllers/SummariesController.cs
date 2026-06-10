@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using StudySummarizer.DTOs;
 using StudySummarizer.DTOs.Summaries;
 using StudySummarizer.Services;
 
@@ -22,8 +23,8 @@ public class SummariesController : ControllerBase
     [HttpPost("{documentId}/summarize")]
     public async Task<IActionResult> GenerateSummary(string documentId, [FromBody] SummaryGenerateRequest request)
     {
-        var response = await _summaryService.GenerateSummaryAsync(documentId, request);
-        return Ok(response);
+        var result = await _summaryService.GenerateSummaryAsync(documentId, request);
+        return Created($"/api/documents/{documentId}/summary", ApiResponse<SummaryGenerateResponse>.SuccessResponse(result, "Summary generation started"));
     }
 
     [AllowAnonymous]
@@ -31,13 +32,13 @@ public class SummariesController : ControllerBase
     public async Task<IActionResult> GetSummary(string documentId)
     {
         var summary = await _summaryService.GetSummaryAsync(documentId);
-        return Ok(summary);
+        return Ok(ApiResponse<SummaryDetailResponse>.SuccessResponse(summary, "Summary retrieved successfully"));
     }
 
     [HttpPatch("{documentId}/summary")]
     public async Task<IActionResult> UpdateSummary(string documentId, [FromBody] SummaryUpdateRequest request)
     {
-        var response = await _summaryService.UpdateSummaryAsync(documentId, request);
-        return Ok(response);
+        var result = await _summaryService.UpdateSummaryAsync(documentId, request);
+        return Ok(ApiResponse<SummaryUpdateResponse>.SuccessResponse(result, "Summary updated successfully"));
     }
 }

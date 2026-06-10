@@ -4,8 +4,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using StudySummarizer;
+using StudySummarizer.Application.Interfaces;
+using StudySummarizer.Application.Repositories;
+using StudySummarizer.Application.Settings;
 using StudySummarizer.Data;
+using StudySummarizer.DTOs;
+using StudySummarizer.DTOs.Auth;
+using StudySummarizer.DTOs.Documents;
+using StudySummarizer.Infrastructure.Services;
 using StudySummarizer.Middleware;
+using StudySummarizer.Repository;
 using StudySummarizer.Services;
 using System.Text;
 
@@ -37,14 +45,30 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+
 builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(Constants.Database.SqliteConnection));
 
+// Infrastructure
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Application services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<ISummaryService, SummaryService>();
 builder.Services.AddSingleton<IIdGeneratorService, IdGeneratorService>();
+
+// Infrastructure services
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
+builder.Services.AddScoped<ITokenService, JwtTokenService>();
+
+// Validators
+builder.Services.AddScoped<IValidator<UserRegisterRequest>, UserRegisterRequestValidator>();
+builder.Services.AddScoped<IValidator<UserLoginRequest>, UserLoginRequestValidator>();
+builder.Services.AddScoped<IValidator<DocumentUploadRequest>, DocumentUploadRequestValidator>();
+builder.Services.AddScoped<IValidator<PaginationRequest>, PaginationRequestValidator>();
 
 var jwtSecret = builder.Configuration[Constants.Jwt.ConfigKeySecret] ?? Constants.Jwt.DefaultSecret;
 var jwtIssuer = builder.Configuration[Constants.Jwt.ConfigKeyIssuer] ?? Constants.Jwt.DefaultIssuer;
@@ -80,6 +104,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddLogging(config => config.AddSerilog());
+builder.Services.AddHealthChecks();
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -91,7 +116,6 @@ var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// CORS must be early in the pipeline
 app.UseHttpsRedirection();
 app.UseCors(Constants.Cors.AllowAllPolicy);
 
@@ -106,6 +130,7 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 using (var scope = app.Services.CreateScope())
 {
@@ -113,4 +138,4 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
-app.Run();
+app.Run("http://localhost:5000");

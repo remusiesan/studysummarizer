@@ -1,5 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using StudySummarizer.Data;
+using StudySummarizer.Application.Repositories;
 using StudySummarizer.DTOs.Auth;
 using StudySummarizer.DTOs.Documents;
 using StudySummarizer.Exceptions;
@@ -19,8 +18,7 @@ public interface IDocumentService
 
 public class DocumentService : IDocumentService
 {
-    // Configuration constants
-    private const long MaxFileSize = 20 * 1024 * 1024; // 20 MB
+    private const long MaxFileSize = 20 * 1024 * 1024;
 
     private static readonly string[] AllowedExtensions =
     {
@@ -28,37 +26,32 @@ public class DocumentService : IDocumentService
         "ppt", "pptx", "png", "jpg", "jpeg", "gif"
     };
 
-    private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<DocumentService> _logger;
     private readonly IIdGeneratorService _idGenerator;
 
-    public DocumentService(AppDbContext context, ILogger<DocumentService> logger, IIdGeneratorService idGenerator)
+    public DocumentService(IUnitOfWork unitOfWork, ILogger<DocumentService> logger, IIdGeneratorService idGenerator)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _logger = logger;
         _idGenerator = idGenerator;
     }
 
     public async Task<DocumentUploadResponse> UploadDocumentAsync(DocumentUploadRequest request, string userId)
     {
-        // Validate file exists
         if (request.File == null || request.File.Length == 0)
             throw new ValidationException("File is required. Please select a file to upload.");
 
-        // Validate title
         if (string.IsNullOrWhiteSpace(request.Title))
             throw new ValidationException("Document title is required.");
 
-        // Validate title length
         if (request.Title.Length > 255)
             throw new ValidationException("Document title cannot exceed 255 characters.");
 
-        // Validate file size
         if (request.File.Length > MaxFileSize)
             throw new ValidationException(
                 $"File size exceeds the maximum limit of 20MB. Your file is {FormatFileSize(request.File.Length)}.");
 
-        // Extract and validate file extension
         var fileName = request.File.FileName ?? "file";
         var fileExtension = Path.GetExtension(fileName).TrimStart('.').ToLower();
 
@@ -74,7 +67,6 @@ public class DocumentService : IDocumentService
 
         try
         {
-            // Read file content into memory
             byte[] fileContent;
             using (var memoryStream = new MemoryStream())
             {
@@ -82,7 +74,6 @@ public class DocumentService : IDocumentService
                 fileContent = memoryStream.ToArray();
             }
 
-            // Create document with file content stored in database
             var document = new Document
             {
                 Id = documentId,
@@ -96,8 +87,8 @@ public class DocumentService : IDocumentService
                 UploadDate = DateTime.UtcNow
             };
 
-            _context.Documents.Add(document);
-            await _context.SaveChangesAsync();
+            _unitOfWork.Documents.Add(document);
+            await _unitOfWork.SaveChangesAsync();
 
             _logger.LogInformation(
                 "Document {DocumentId} uploaded by user {UserId}. File: {FileName}, Size: {FileSize} bytes, Extension: {Extension}",
@@ -109,21 +100,16 @@ public class DocumentService : IDocumentService
                 Id = documentId
             };
         }
-        catch (DbUpdateException dbEx)
-        {
-            _logger.LogError(dbEx, "Database error while uploading document {DocumentId}", documentId);
-            throw new ValidationException("Failed to save the document. Please try again or contact support if the issue persists.");
-        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error while uploading document {DocumentId}", documentId);
-            throw new ValidationException("An unexpected error occurred while uploading the file. Please try again.");
+            _logger.LogError(ex, "Error while uploading document {DocumentId}", documentId);
+            throw new ValidationException("Failed to save the document. Please try again or contact support if the issue persists.");
         }
     }
 
     public async Task<List<DocumentListItemResponse>> GetAllDocumentsAsync()
     {
-        var documents = await _context.Documents
+        var documents = _unitOfWork.Documents.GetAll()
             .Select(d => new DocumentListItemResponse
             {
                 Id = d.Id,
@@ -133,9 +119,9 @@ public class DocumentService : IDocumentService
                 UploadedAt = d.UploadDate,
                 FileSize = d.FileSize
             })
-            .ToListAsync();
+            .ToList();
 
-        return documents;
+        return await Task.FromResult(documents);
     }
 
     public async Task<DocumentDetailResponse> GetDocumentAsync(string documentId)
@@ -143,11 +129,11 @@ public class DocumentService : IDocumentService
         if (string.IsNullOrWhiteSpace(documentId))
             throw new ValidationException("Document ID is required.");
 
-        var document = await _context.Documents.FindAsync(documentId);
+        var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException($"Document with ID '{documentId}' not found.");
 
-        return new DocumentDetailResponse
+        return await Task.FromResult(new DocumentDetailResponse
         {
             Id = document.Id,
             Title = document.Title,
@@ -155,7 +141,7 @@ public class DocumentService : IDocumentService
             Status = document.Status,
             UploadedAt = document.UploadDate,
             FileSize = document.FileSize
-        };
+        });
     }
 
     public async Task<Stream> DownloadDocumentAsync(string documentId)
@@ -163,7 +149,7 @@ public class DocumentService : IDocumentService
         if (string.IsNullOrWhiteSpace(documentId))
             throw new ValidationException("Document ID is required.");
 
-        var document = await _context.Documents.FindAsync(documentId);
+        var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException($"Document with ID '{documentId}' not found.");
 
@@ -176,10 +162,9 @@ public class DocumentService : IDocumentService
 
         _logger.LogInformation("Document {DocumentId} downloaded by user {UserId}", documentId, document.UserId);
 
-        // Return memory stream with file content from database
         var memoryStream = new MemoryStream(document.FileContent, writable: false);
         memoryStream.Seek(0, SeekOrigin.Begin);
-        return memoryStream;
+        return await Task.FromResult<Stream>(memoryStream);
     }
 
     public async Task<DocumentDeleteResponse> DeleteDocumentAsync(string documentId)
@@ -187,15 +172,14 @@ public class DocumentService : IDocumentService
         if (string.IsNullOrWhiteSpace(documentId))
             throw new ValidationException("Document ID is required.");
 
-        var document = await _context.Documents.FindAsync(documentId);
+        var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException($"Document with ID '{documentId}' not found.");
 
         try
         {
-            // Delete from database (file content is automatically deleted)
-            _context.Documents.Remove(document);
-            await _context.SaveChangesAsync();
+            _unitOfWork.Documents.Delete(document);
+            await _unitOfWork.SaveChangesAsync();
 
             _logger.LogInformation("Document {DocumentId} deleted successfully", documentId);
 
@@ -204,14 +188,9 @@ public class DocumentService : IDocumentService
                 Message = "Document deleted successfully"
             };
         }
-        catch (DbUpdateException dbEx)
-        {
-            _logger.LogError(dbEx, "Database error while deleting document {DocumentId}", documentId);
-            throw new ValidationException("Unable to delete the document. Please try again.");
-        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error while deleting document {DocumentId}", documentId);
+            _logger.LogError(ex, "Error while deleting document {DocumentId}", documentId);
             throw new ValidationException("An error occurred while deleting the document. Please try again.");
         }
     }
@@ -221,22 +200,18 @@ public class DocumentService : IDocumentService
         if (string.IsNullOrWhiteSpace(userId))
             throw new ValidationException("User ID is required.");
 
-        var documents = await _context.Documents
-            .Where(d => d.UserId == userId)
+        var documents = _unitOfWork.Documents.Find(d => d.UserId == userId)
             .Select(d => new UserDocumentListResponse
             {
                 DocumentId = d.Id,
                 Title = d.Title,
                 Status = d.Status
             })
-            .ToListAsync();
+            .ToList();
 
-        return documents;
+        return await Task.FromResult(documents);
     }
 
-    /// <summary>
-    /// Formats file size in human-readable format (KB, MB, GB)
-    /// </summary>
     private static string FormatFileSize(long bytes)
     {
         var units = new[] { "B", "KB", "MB", "GB" };
