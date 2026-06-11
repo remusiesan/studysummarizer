@@ -14,7 +14,7 @@ A .NET 8 REST API for document management and AI-powered summarization. Built wi
 dotnet restore
 
 # Run the application (database is created automatically on first run)
-dotnet run
+dotnet run --project StudySummarizer.API
 ```
 
 **API runs on:** `http://localhost:5000`  
@@ -24,51 +24,70 @@ dotnet run
 
 ## 📋 Project Structure
 
+The solution follows **Onion Architecture** with four separate .NET projects. Dependencies only point inward (toward Domain).
+
 ```
-├── Application/                  # Interfaces and contracts (no infrastructure deps)
-│   ├── Interfaces/
-│   │   └── ITokenService.cs
-│   ├── Repositories/
+studysummarizer.slnx
+├── StudySummarizer.Domain/           # Core — no external dependencies
+│   ├── Entities/
+│   │   ├── User.cs
+│   │   ├── Document.cs
+│   │   ├── DocumentStatusValues.cs
+│   │   ├── Summary.cs
+│   │   └── AIModel.cs
+│   └── Exceptions/
+│       ├── ApiException.cs
+│       ├── NotFoundException.cs
+│       ├── UnauthorizedException.cs
+│       └── ValidationException.cs
+│
+├── StudySummarizer.Application/      # Use cases — depends on Domain only
+│   ├── Interfaces/                   # Service contracts
+│   │   ├── IAuthService.cs
+│   │   ├── IDocumentService.cs
+│   │   ├── ISummaryService.cs
+│   │   ├── ITokenService.cs
+│   │   ├── IFileUpload.cs
+│   │   └── IIdGeneratorService.cs
+│   ├── Repositories/                 # Repository contracts
 │   │   ├── IRepository.cs
 │   │   └── IUnitOfWork.cs
+│   ├── Services/                     # Business logic implementations
+│   │   ├── AuthService.cs
+│   │   ├── DocumentService.cs
+│   │   └── SummaryService.cs
+│   ├── DTOs/                         # Request / response objects + validators
+│   │   ├── Auth/
+│   │   ├── Documents/
+│   │   ├── Summaries/
+│   │   └── (pagination DTOs)
+│   ├── Extensions/
+│   │   └── PaginationExtensions.cs
 │   └── Settings/
 │       └── JwtSettings.cs
-├── Infrastructure/               # Implementations with external dependencies
+│
+├── StudySummarizer.Infrastructure/   # External concerns — depends on Application + Domain
+│   ├── Data/
+│   │   └── AppDbContext.cs
+│   ├── Repositories/
+│   │   ├── Repository.cs
+│   │   └── UnitOfWork.cs
 │   └── Services/
-│       └── JwtTokenService.cs    # JWT token generation
-├── Controllers/                  # API endpoints
-│   ├── AuthController.cs
-│   ├── DocumentsController.cs
-│   └── SummariesController.cs
-├── Services/                     # Application services (business logic)
-│   ├── AuthService.cs
-│   ├── DocumentService.cs
-│   ├── SummaryService.cs
-│   └── IdGeneratorService.cs
-├── Repository/                   # Repository and Unit of Work implementations
-│   ├── Repository.cs
-│   ├── UnitOfWork.cs
-│   └── RepositoryExtensions.cs
-├── Models/                       # Domain entities
-│   ├── User.cs
-│   ├── Document.cs
-│   ├── Summary.cs
-│   └── AIModel.cs
-├── DTOs/                         # Data transfer objects
-│   ├── Auth/
-│   ├── Documents/
-│   └── Summaries/
-├── Data/
-│   └── AppDbContext.cs
-├── Middleware/
-│   └── ExceptionHandlingMiddleware.cs
-├── Exceptions/
-│   └── ApiException.cs
-├── Properties/
-│   └── launchSettings.json
-├── Program.cs
-├── Constants.cs
-└── StudySummarizer.csproj
+│       ├── JwtTokenService.cs
+│       └── IdGeneratorService.cs
+│
+└── StudySummarizer.API/              # Presentation — depends on Application + Infrastructure
+    ├── Controllers/
+    │   ├── AuthController.cs
+    │   ├── DocumentsController.cs
+    │   └── SummariesController.cs
+    ├── Middleware/
+    │   └── ExceptionHandlingMiddleware.cs
+    ├── Adapters/
+    │   └── FormFileAdapter.cs
+    ├── Program.cs
+    ├── Constants.cs
+    └── appsettings.json
 ```
 
 ---
@@ -234,7 +253,7 @@ Content-Type: application/json
 }
 ```
 
-URL and environment are configured in `Properties/launchSettings.json` for development, and via the `ASPNETCORE_URLS` environment variable in production.
+URL and environment are configured in `StudySummarizer.API/Properties/launchSettings.json` for development, and via the `ASPNETCORE_URLS` environment variable in production.
 
 ---
 
