@@ -25,6 +25,7 @@ appsettings.Development.json
 secrets.json
 
 # IDE and Editor Files
+.vs/
 .vscode/
 .idea/
 *.swp

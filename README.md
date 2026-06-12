@@ -1,12 +1,11 @@
 # Study Summarizer - Backend API
 
-A modern .NET 8 REST API for document management and AI-powered summarization. Built with JWT authentication, SQLite database, and comprehensive endpoints.
+A .NET 8 REST API for document management and AI-powered summarization. Built with JWT authentication, SQLite, onion architecture, and the Unit of Work pattern.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - .NET 8 SDK
-- SQLite (included with .NET)
 
 ### Setup
 
@@ -14,11 +13,8 @@ A modern .NET 8 REST API for document management and AI-powered summarization. B
 # Restore dependencies
 dotnet restore
 
-# Apply database migrations
-dotnet ef database update
-
-# Run the application
-dotnet run
+# Run the application (database is created automatically on first run)
+dotnet run --project StudySummarizer.API
 ```
 
 **API runs on:** `http://localhost:5000`  
@@ -28,31 +24,70 @@ dotnet run
 
 ## 📋 Project Structure
 
+The solution follows **Onion Architecture** with four separate .NET projects. Dependencies only point inward (toward Domain).
+
 ```
-├── Controllers/           # API endpoints
-│   ├── AuthController.cs       # Authentication (login, register)
-│   ├── DocumentsController.cs  # Document operations
-│   └── SummariesController.cs  # Summary endpoints
-├── Services/             # Business logic
-│   ├── AuthService.cs         # JWT token generation, user auth
-│   ├── DocumentService.cs     # File upload, retrieval, download
-│   └── SummaryService.cs      # Summary generation and updates
-├── Models/               # Data models
-│   ├── User.cs
-│   ├── Document.cs
-│   └── Summary.cs
-├── DTOs/                 # Data transfer objects
-│   ├── Auth/
-│   └── Documents/
-├── Data/                 # Database context
-│   └── AppDbContext.cs
-├── Middleware/           # Custom middleware
-│   └── ExceptionHandlingMiddleware.cs
-├── Exceptions/           # Custom exceptions
-│   └── ApiException.cs
-├── Program.cs            # Application configuration
-├── Constants.cs          # Application constants
-└── StudySummarizer.csproj
+studysummarizer.slnx
+├── StudySummarizer.Domain/           # Core — no external dependencies
+│   ├── Entities/
+│   │   ├── User.cs
+│   │   ├── Document.cs
+│   │   ├── DocumentStatusValues.cs
+│   │   ├── Summary.cs
+│   │   └── AIModel.cs
+│   └── Exceptions/
+│       ├── ApiException.cs
+│       ├── NotFoundException.cs
+│       ├── UnauthorizedException.cs
+│       └── ValidationException.cs
+│
+├── StudySummarizer.Application/      # Use cases — depends on Domain only
+│   ├── Interfaces/                   # Service contracts
+│   │   ├── IAuthService.cs
+│   │   ├── IDocumentService.cs
+│   │   ├── ISummaryService.cs
+│   │   ├── ITokenService.cs
+│   │   ├── IFileUpload.cs
+│   │   └── IIdGeneratorService.cs
+│   ├── Repositories/                 # Repository contracts
+│   │   ├── IRepository.cs
+│   │   └── IUnitOfWork.cs
+│   ├── Services/                     # Business logic implementations
+│   │   ├── AuthService.cs
+│   │   ├── DocumentService.cs
+│   │   └── SummaryService.cs
+│   ├── DTOs/                         # Request / response objects + validators
+│   │   ├── Auth/
+│   │   ├── Documents/
+│   │   ├── Summaries/
+│   │   └── (pagination DTOs)
+│   ├── Extensions/
+│   │   └── PaginationExtensions.cs
+│   └── Settings/
+│       └── JwtSettings.cs
+│
+├── StudySummarizer.Infrastructure/   # External concerns — depends on Application + Domain
+│   ├── Data/
+│   │   └── AppDbContext.cs
+│   ├── Repositories/
+│   │   ├── Repository.cs
+│   │   └── UnitOfWork.cs
+│   └── Services/
+│       ├── JwtTokenService.cs
+│       └── IdGeneratorService.cs
+│
+└── StudySummarizer.API/              # Presentation — depends on Application + Infrastructure
+    ├── Controllers/
+    │   ├── AuthController.cs
+    │   ├── DocumentsController.cs
+    │   └── SummariesController.cs
+    ├── Middleware/
+    │   └── ExceptionHandlingMiddleware.cs
+    ├── Adapters/
+    │   └── FormFileAdapter.cs
+    ├── Program.cs
+    ├── Constants.cs
+    └── appsettings.json
 ```
 
 ---
@@ -90,6 +125,27 @@ Content-Type: application/json
 }
 ```
 
+**Response:**
+```json
+{
+  "message": "Login successful",
+  "token": "eyJhbGc...",
+  "userId": "U1"
+}
+```
+
+### Get Profile
+```http
+GET /api/auth/profile
+Authorization: Bearer {token}
+```
+
+### Get User Documents
+```http
+GET /api/auth/{userId}/documents
+Authorization: Bearer {token}
+```
+
 ---
 
 ## 📄 Document Endpoints
@@ -105,6 +161,9 @@ form-data:
   file: (binary file)
 ```
 
+**Supported formats:** PDF, DOC, DOCX, TXT, XLS, XLSX, PPT, PPTX, PNG, JPG, JPEG, GIF  
+**Max file size:** 20 MB
+
 **Response:**
 ```json
 {
@@ -115,20 +174,17 @@ form-data:
 
 ### List Documents
 ```http
-GET /api/documents
-Authorization: Bearer {token}
+GET /api/documents?pageNumber=1&pageSize=10
 ```
 
 ### Get Document Details
 ```http
 GET /api/documents/{id}
-Authorization: Bearer {token}
 ```
 
 ### Download Document
 ```http
 GET /api/documents/{id}/file
-Authorization: Bearer {token}
 ```
 
 ### Delete Document
@@ -173,13 +229,14 @@ Content-Type: application/json
 ## 🗄️ Database
 
 **Type:** SQLite  
-**File:** `studysummarizer.db`
+**File:** `studysummarizer.db`  
+**Initialisation:** created automatically via `EnsureCreated()` on startup
 
 ### Tables
-- **Users** — User accounts and authentication
-- **Documents** — Uploaded files and metadata
-- **Summaries** — AI-generated summaries
-- **AIModels** — Available AI models configuration
+- **Users** — user accounts and authentication
+- **Documents** — uploaded files and metadata (file content stored as blob)
+- **Summaries** — generated summaries
+- **AIModels** — AI model configuration
 
 ---
 
@@ -188,9 +245,6 @@ Content-Type: application/json
 ### appsettings.json
 ```json
 {
-  "ConnectionStrings": {
-    "DefaultConnection": "Data Source=studysummarizer.db"
-  },
   "Jwt": {
     "Secret": "your-secret-key-here",
     "Issuer": "StudySummarizer",
@@ -199,27 +253,18 @@ Content-Type: application/json
 }
 ```
 
-### appsettings.Development.json
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information"
-    }
-  }
-}
-```
+URL and environment are configured in `StudySummarizer.API/Properties/launchSettings.json` for development, and via the `ASPNETCORE_URLS` environment variable in production.
 
 ---
 
 ## 📦 Dependencies
 
-- **ASP.NET Core 8** — Web framework
-- **Entity Framework Core** — ORM
-- **SQLite** — Database
-- **BCrypt.Net** — Password hashing
-- **JWT** — Token-based authentication
-- **Serilog** — Logging
+- **ASP.NET Core 8** — web framework
+- **Entity Framework Core + SQLite** — ORM and database
+- **BCrypt.Net** — password hashing
+- **Microsoft.IdentityModel.Tokens** — JWT token generation
+- **FluentValidation** — request validation
+- **Serilog** — structured logging
 
 ---
 
@@ -228,47 +273,12 @@ Content-Type: application/json
 ✅ JWT token-based authentication  
 ✅ Password hashing with BCrypt  
 ✅ CORS enabled for frontend access  
-✅ Exception handling middleware  
+✅ Global exception handling middleware  
+✅ FluentValidation on all request DTOs  
 ✅ Authorization checks on protected endpoints  
-
----
-
-## 🧪 Testing
-
-Run tests:
-```bash
-dotnet test
-```
 
 ---
 
 ## 📝 API Specification
 
 See [API_SPECIFICATION.md](API_SPECIFICATION.md) for detailed endpoint documentation.
-
----
-
-## 🚢 Deployment
-
-### Build Release
-```bash
-dotnet publish -c Release
-```
-
-### Docker (optional)
-```bash
-docker build -t study-summarizer .
-docker run -p 5000:5000 study-summarizer
-```
-
----
-
-## 📧 Support
-
-For issues or questions, check the [API Specification](API_SPECIFICATION.md).
-
----
-
-## 📄 License
-
-MIT License - See LICENSE file for details
