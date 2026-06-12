@@ -1,6 +1,7 @@
 using StudySummarizer.Application.DTOs;
-using StudySummarizer.Domain.Exceptions;
 using System.Net;
+
+using DomainExceptions = StudySummarizer.Domain.Exceptions;
 
 namespace StudySummarizer.API.Middleware;
 
@@ -23,32 +24,39 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, Constants.Logging.UnhandledExceptionMessage);
+            _logger.LogError(ex, "An unhandled exception occurred");
             await HandleExceptionAsync(context, ex);
         }
     }
 
     private static Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        context.Response.ContentType = Constants.ContentTypes.Json;
+        context.Response.ContentType = "application/json";
 
         var response = exception switch
         {
-            ValidationException vEx => new ApiResponse
+            FluentValidation.ValidationException fvEx => new ApiResponse
+            {
+                Success = false,
+                Message = "Validation failed",
+                Errors = fvEx.Errors.Select(e => e.ErrorMessage).ToList(),
+                Timestamp = DateTime.UtcNow
+            },
+            DomainExceptions.ValidationException vEx => new ApiResponse
             {
                 Success = false,
                 Message = vEx.Message,
                 Errors = [vEx.Message],
                 Timestamp = DateTime.UtcNow
             },
-            NotFoundException nfEx => new ApiResponse
+            DomainExceptions.NotFoundException nfEx => new ApiResponse
             {
                 Success = false,
                 Message = nfEx.Message,
                 Errors = [nfEx.Message],
                 Timestamp = DateTime.UtcNow
             },
-            UnauthorizedException uEx => new ApiResponse
+            DomainExceptions.UnauthorizedException uEx => new ApiResponse
             {
                 Success = false,
                 Message = uEx.Message,
@@ -66,9 +74,10 @@ public class ExceptionHandlingMiddleware
 
         context.Response.StatusCode = exception switch
         {
-            ValidationException => (int)HttpStatusCode.BadRequest,
-            NotFoundException => (int)HttpStatusCode.NotFound,
-            UnauthorizedException => (int)HttpStatusCode.Unauthorized,
+            FluentValidation.ValidationException => (int)HttpStatusCode.BadRequest,
+            DomainExceptions.ValidationException => (int)HttpStatusCode.BadRequest,
+            DomainExceptions.NotFoundException => (int)HttpStatusCode.NotFound,
+            DomainExceptions.UnauthorizedException => (int)HttpStatusCode.Unauthorized,
             _ => (int)HttpStatusCode.InternalServerError
         };
 

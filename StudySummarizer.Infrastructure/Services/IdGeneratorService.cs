@@ -1,4 +1,4 @@
-using StudySummarizer.Application.Interfaces;
+using StudySummarizer.Application.Services.Interfaces;
 
 namespace StudySummarizer.Infrastructure.Services;
 

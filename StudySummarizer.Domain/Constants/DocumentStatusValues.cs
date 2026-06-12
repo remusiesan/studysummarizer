@@ -1,4 +1,4 @@
-namespace StudySummarizer.Domain.Entities;
+namespace StudySummarizer.Domain.Constants;
 
 public static class DocumentStatusValues
 {

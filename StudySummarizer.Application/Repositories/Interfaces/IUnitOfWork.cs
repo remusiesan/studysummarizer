@@ -1,6 +1,6 @@
 using StudySummarizer.Domain.Entities;
 
-namespace StudySummarizer.Application.Repositories;
+namespace StudySummarizer.Application.Repositories.Interfaces;
 
 public interface IUnitOfWork : IDisposable
 {

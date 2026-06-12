@@ -1,8 +1,10 @@
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using StudySummarizer.Application.DTOs.Auth;
 using StudySummarizer.Application.DTOs.Documents;
-using StudySummarizer.Application.Interfaces;
-using StudySummarizer.Application.Repositories;
+using StudySummarizer.Application.Repositories.Interfaces;
+using StudySummarizer.Application.Services.Interfaces;
+using StudySummarizer.Domain.Constants;
 using StudySummarizer.Domain.Entities;
 using StudySummarizer.Domain.Exceptions;
 
@@ -10,51 +12,29 @@ namespace StudySummarizer.Application.Services;
 
 public class DocumentService : IDocumentService
 {
-    private const long MaxFileSize = 20 * 1024 * 1024;
-
-    private static readonly string[] AllowedExtensions =
-    {
-        "pdf", "doc", "docx", "txt", "xls", "xlsx",
-        "ppt", "pptx", "png", "jpg", "jpeg", "gif"
-    };
-
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<DocumentService> _logger;
     private readonly IIdGeneratorService _idGenerator;
+    private readonly IValidator<DocumentUploadRequest> _uploadValidator;
 
-    public DocumentService(IUnitOfWork unitOfWork, ILogger<DocumentService> logger, IIdGeneratorService idGenerator)
+    public DocumentService(
+        IUnitOfWork unitOfWork,
+        ILogger<DocumentService> logger,
+        IIdGeneratorService idGenerator,
+        IValidator<DocumentUploadRequest> uploadValidator)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _idGenerator = idGenerator;
+        _uploadValidator = uploadValidator;
     }
 
     public async Task<DocumentUploadResponse> UploadDocumentAsync(DocumentUploadRequest request, string userId)
     {
-        if (request.File == null || request.File.Length == 0)
-            throw new ValidationException("File is required. Please select a file to upload.");
-
-        if (string.IsNullOrWhiteSpace(request.Title))
-            throw new ValidationException("Document title is required.");
-
-        if (request.Title.Length > 255)
-            throw new ValidationException("Document title cannot exceed 255 characters.");
-
-        if (request.File.Length > MaxFileSize)
-            throw new ValidationException(
-                $"File size exceeds the maximum limit of 20MB. Your file is {FormatFileSize(request.File.Length)}.");
+        await _uploadValidator.ValidateAndThrowAsync(request);
 
         var fileName = request.File.FileName ?? "file";
         var fileExtension = Path.GetExtension(fileName).TrimStart('.').ToLower();
-
-        if (string.IsNullOrWhiteSpace(fileExtension))
-            throw new ValidationException("File must have a valid extension (e.g., .pdf, .docx, .txt).");
-
-        if (!AllowedExtensions.Contains(fileExtension))
-            throw new ValidationException(
-                $"File format '{fileExtension.ToUpper()}' is not allowed. " +
-                $"Supported formats: {string.Join(", ", AllowedExtensions.Select(e => e.ToUpper()))}");
-
         var documentId = _idGenerator.GenerateDocumentId();
 
         try
@@ -92,10 +72,10 @@ public class DocumentService : IDocumentService
                 Id = documentId
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not FluentValidation.ValidationException)
         {
             _logger.LogError(ex, "Error while uploading document {DocumentId}", documentId);
-            throw new ValidationException("Failed to save the document. Please try again or contact support if the issue persists.");
+            throw new StudySummarizer.Domain.Exceptions.ValidationException("Failed to save the document. Please try again or contact support if the issue persists.");
         }
     }
 
@@ -118,9 +98,6 @@ public class DocumentService : IDocumentService
 
     public async Task<DocumentDetailResponse> GetDocumentAsync(string documentId)
     {
-        if (string.IsNullOrWhiteSpace(documentId))
-            throw new ValidationException("Document ID is required.");
-
         var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException($"Document with ID '{documentId}' not found.");
@@ -138,9 +115,6 @@ public class DocumentService : IDocumentService
 
     public async Task<Stream> DownloadDocumentAsync(string documentId)
     {
-        if (string.IsNullOrWhiteSpace(documentId))
-            throw new ValidationException("Document ID is required.");
-
         var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException($"Document with ID '{documentId}' not found.");
@@ -161,9 +135,6 @@ public class DocumentService : IDocumentService
 
     public async Task<DocumentDeleteResponse> DeleteDocumentAsync(string documentId)
     {
-        if (string.IsNullOrWhiteSpace(documentId))
-            throw new ValidationException("Document ID is required.");
-
         var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException($"Document with ID '{documentId}' not found.");
@@ -183,15 +154,12 @@ public class DocumentService : IDocumentService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error while deleting document {DocumentId}", documentId);
-            throw new ValidationException("An error occurred while deleting the document. Please try again.");
+            throw new StudySummarizer.Domain.Exceptions.ValidationException("An error occurred while deleting the document. Please try again.");
         }
     }
 
     public async Task<List<UserDocumentListResponse>> GetUserDocumentsAsync(string userId)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-            throw new ValidationException("User ID is required.");
-
         var documents = _unitOfWork.Documents.Find(d => d.UserId == userId)
             .Select(d => new UserDocumentListResponse
             {
@@ -202,20 +170,5 @@ public class DocumentService : IDocumentService
             .ToList();
 
         return await Task.FromResult(documents);
-    }
-
-    private static string FormatFileSize(long bytes)
-    {
-        var units = new[] { "B", "KB", "MB", "GB" };
-        double size = bytes;
-        int unitIndex = 0;
-
-        while (size >= 1024 && unitIndex < units.Length - 1)
-        {
-            size /= 1024;
-            unitIndex++;
-        }
-
-        return $"{size:F2} {units[unitIndex]}";
     }
 }

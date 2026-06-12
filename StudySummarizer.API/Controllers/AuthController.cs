@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StudySummarizer.Application.DTOs;
 using StudySummarizer.Application.DTOs.Auth;
-using StudySummarizer.Application.Interfaces;
+using StudySummarizer.Application.Services.Interfaces;
 
 namespace StudySummarizer.API.Controllers;
 

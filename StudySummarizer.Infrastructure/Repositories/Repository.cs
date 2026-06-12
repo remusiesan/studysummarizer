@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using StudySummarizer.Application.Repositories;
+using StudySummarizer.Application.Repositories.Interfaces;
 using StudySummarizer.Infrastructure.Data;
 using System.Linq.Expressions;
 

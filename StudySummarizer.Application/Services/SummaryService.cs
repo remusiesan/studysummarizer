@@ -1,7 +1,9 @@
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using StudySummarizer.Application.DTOs.Summaries;
-using StudySummarizer.Application.Interfaces;
-using StudySummarizer.Application.Repositories;
+using StudySummarizer.Application.Repositories.Interfaces;
+using StudySummarizer.Application.Services.Interfaces;
+using StudySummarizer.Domain.Constants;
 using StudySummarizer.Domain.Entities;
 using StudySummarizer.Domain.Exceptions;
 
@@ -12,23 +14,34 @@ public class SummaryService : ISummaryService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SummaryService> _logger;
     private readonly IIdGeneratorService _idGenerator;
+    private readonly IValidator<SummaryGenerateRequest> _generateValidator;
+    private readonly IValidator<SummaryUpdateRequest> _updateValidator;
 
-    public SummaryService(IUnitOfWork unitOfWork, ILogger<SummaryService> logger, IIdGeneratorService idGenerator)
+    public SummaryService(
+        IUnitOfWork unitOfWork,
+        ILogger<SummaryService> logger,
+        IIdGeneratorService idGenerator,
+        IValidator<SummaryGenerateRequest> generateValidator,
+        IValidator<SummaryUpdateRequest> updateValidator)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _idGenerator = idGenerator;
+        _generateValidator = generateValidator;
+        _updateValidator = updateValidator;
     }
 
     public async Task<SummaryGenerateResponse> GenerateSummaryAsync(string documentId, SummaryGenerateRequest request)
     {
+        await _generateValidator.ValidateAndThrowAsync(request);
+
         var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException("Document not found");
 
         var existingSummary = _unitOfWork.Summaries.Get(s => s.DocumentId == documentId);
         if (existingSummary != null)
-            throw new ValidationException("A summary already exists for this document");
+            throw new StudySummarizer.Domain.Exceptions.ValidationException("A summary already exists for this document");
 
         var summaryId = _idGenerator.GenerateSummaryId();
 
@@ -79,6 +92,8 @@ public class SummaryService : ISummaryService
 
     public async Task<SummaryUpdateResponse> UpdateSummaryAsync(string documentId, SummaryUpdateRequest request)
     {
+        await _updateValidator.ValidateAndThrowAsync(request);
+
         var document = _unitOfWork.Documents.Get(d => d.Id == documentId);
         if (document == null)
             throw new NotFoundException("Document not found");

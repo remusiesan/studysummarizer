@@ -1,6 +1,6 @@
 using StudySummarizer.Application.DTOs.Auth;
 
-namespace StudySummarizer.Application.Interfaces;
+namespace StudySummarizer.Application.Services.Interfaces;
 
 public interface IAuthService
 {

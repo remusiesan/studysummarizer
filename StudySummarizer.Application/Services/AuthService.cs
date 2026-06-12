@@ -1,8 +1,8 @@
 using BCrypt.Net;
 using Microsoft.Extensions.Logging;
 using StudySummarizer.Application.DTOs.Auth;
-using StudySummarizer.Application.Interfaces;
-using StudySummarizer.Application.Repositories;
+using StudySummarizer.Application.Services.Interfaces;
+using StudySummarizer.Application.Repositories.Interfaces;
 using StudySummarizer.Domain.Entities;
 using StudySummarizer.Domain.Exceptions;
 

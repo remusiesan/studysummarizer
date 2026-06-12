@@ -1,7 +1,7 @@
 using StudySummarizer.Application.DTOs.Auth;
 using StudySummarizer.Application.DTOs.Documents;
 
-namespace StudySummarizer.Application.Interfaces;
+namespace StudySummarizer.Application.Services.Interfaces;
 
 public interface IDocumentService
 {

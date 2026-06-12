@@ -4,7 +4,7 @@ using StudySummarizer.API.Adapters;
 using StudySummarizer.Application.DTOs;
 using StudySummarizer.Application.DTOs.Documents;
 using StudySummarizer.Application.Extensions;
-using StudySummarizer.Application.Interfaces;
+using StudySummarizer.Application.Services.Interfaces;
 
 namespace StudySummarizer.API.Controllers;
 

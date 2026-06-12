@@ -1,4 +1,4 @@
-using StudySummarizer.Application.Repositories;
+using StudySummarizer.Application.Repositories.Interfaces;
 using StudySummarizer.Domain.Entities;
 using StudySummarizer.Infrastructure.Data;
 

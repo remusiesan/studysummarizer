@@ -1,16 +1,18 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using StudySummarizer.API;
 using StudySummarizer.API.Middleware;
+using StudySummarizer.API.Settings;
 using StudySummarizer.Application.DTOs;
 using StudySummarizer.Application.DTOs.Auth;
 using StudySummarizer.Application.DTOs.Documents;
-using StudySummarizer.Application.Interfaces;
-using StudySummarizer.Application.Repositories;
+using StudySummarizer.Application.DTOs.Summaries;
+using StudySummarizer.Application.Repositories.Interfaces;
 using StudySummarizer.Application.Services;
+using StudySummarizer.Application.Services.Interfaces;
 using StudySummarizer.Application.Settings;
 using StudySummarizer.Infrastructure.Data;
 using StudySummarizer.Infrastructure.Repositories;
@@ -19,15 +21,21 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseSerilog((context, config) =>
+    config.ReadFrom.Configuration(context.Configuration));
+
+var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
+    ?? throw new InvalidOperationException("JWT settings are not configured.");
+
 builder.Services.AddSwaggerGen(c =>
 {
-    c.AddSecurityDefinition(Constants.Jwt.SchemeId, new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
-        Name = Constants.Jwt.SchemeName,
+        Name = "Authorization",
         Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Scheme = Constants.Jwt.Scheme,
-        BearerFormat = Constants.Jwt.BearerFormat,
-        Description = Constants.Jwt.Description
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT Token Authorization"
     });
 
     c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
@@ -38,7 +46,7 @@ builder.Services.AddSwaggerGen(c =>
                 Reference = new Microsoft.OpenApi.Models.OpenApiReference
                 {
                     Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                    Id = Constants.Jwt.SchemeId
+                    Id = "Bearer"
                 }
             },
             Array.Empty<string>()
@@ -48,7 +56,8 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(Constants.Database.SqliteConnection));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Database connection string is not configured.")));
 
 // Infrastructure
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -64,15 +73,16 @@ builder.Services.AddSingleton<IIdGeneratorService, IdGeneratorService>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 
+// Settings
+builder.Services.Configure<SwaggerSettings>(builder.Configuration.GetSection(SwaggerSettings.SectionName));
+
 // Validators
 builder.Services.AddScoped<IValidator<UserRegisterRequest>, UserRegisterRequestValidator>();
 builder.Services.AddScoped<IValidator<UserLoginRequest>, UserLoginRequestValidator>();
 builder.Services.AddScoped<IValidator<DocumentUploadRequest>, DocumentUploadRequestValidator>();
 builder.Services.AddScoped<IValidator<PaginationRequest>, PaginationRequestValidator>();
-
-var jwtSecret = builder.Configuration[Constants.Jwt.ConfigKeySecret] ?? Constants.Jwt.DefaultSecret;
-var jwtIssuer = builder.Configuration[Constants.Jwt.ConfigKeyIssuer] ?? Constants.Jwt.DefaultIssuer;
-var jwtAudience = builder.Configuration[Constants.Jwt.ConfigKeyAudience] ?? Constants.Jwt.DefaultAudience;
+builder.Services.AddScoped<IValidator<SummaryGenerateRequest>, SummaryGenerateRequestValidator>();
+builder.Services.AddScoped<IValidator<SummaryUpdateRequest>, SummaryUpdateRequestValidator>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -81,11 +91,11 @@ builder.Services
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret)),
             ValidateIssuer = true,
-            ValidIssuer = jwtIssuer,
+            ValidIssuer = jwtSettings.Issuer,
             ValidateAudience = true,
-            ValidAudience = jwtAudience,
+            ValidAudience = jwtSettings.Audience,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
@@ -94,7 +104,7 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(Constants.Cors.AllowAllPolicy, policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
         policy.AllowAnyOrigin()
               .AllowAnyMethod()
@@ -103,27 +113,21 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddLogging(config => config.AddSerilog());
 builder.Services.AddHealthChecks();
-
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .WriteTo.Console()
-    .WriteTo.File(Constants.Logging.LogFilePattern, rollingInterval: RollingInterval.Day)
-    .CreateLogger();
 
 var app = builder.Build();
 
-app.UseMiddleware<ExceptionHandlingMiddleware>();
+var swaggerSettings = app.Services.GetRequiredService<IOptions<SwaggerSettings>>().Value;
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
-app.UseCors(Constants.Cors.AllowAllPolicy);
+app.UseCors("AllowAll");
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint(Constants.Swagger.JsonEndpoint, Constants.Swagger.Title);
-    c.RoutePrefix = Constants.Swagger.RoutePrefix;
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", swaggerSettings.Title);
+    c.RoutePrefix = swaggerSettings.RoutePrefix;
 });
 
 app.UseRouting();

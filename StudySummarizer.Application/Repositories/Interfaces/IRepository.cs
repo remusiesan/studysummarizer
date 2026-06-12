@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 
-namespace StudySummarizer.Application.Repositories;
+namespace StudySummarizer.Application.Repositories.Interfaces;
 
 public interface IRepository<T> where T : class
 {

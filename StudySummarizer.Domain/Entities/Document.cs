@@ -1,3 +1,5 @@
+using StudySummarizer.Domain.Constants;
+
 namespace StudySummarizer.Domain.Entities;
 
 public class Document

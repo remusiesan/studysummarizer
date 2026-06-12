@@ -1,6 +1,6 @@
 using StudySummarizer.Application.DTOs.Summaries;
 
-namespace StudySummarizer.Application.Interfaces;
+namespace StudySummarizer.Application.Services.Interfaces;
 
 public interface ISummaryService
 {
